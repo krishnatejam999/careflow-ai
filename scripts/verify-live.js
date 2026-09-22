@@ -131,7 +131,13 @@ async function main() {
   const consoleErrors = [];
   ws.addEventListener('message', (e) => {
     const msg = JSON.parse(e.data);
-    if (msg.method === 'Log.entryAdded' && msg.params.entry.level === 'error') consoleErrors.push(msg.params.entry.text);
+    if (msg.method === 'Log.entryAdded' && msg.params.entry.level === 'error') {
+      const { text, url = '' } = msg.params.entry;
+      // This script deliberately pings the API to prove no server is running;
+      // the resulting 404 is the expected answer, not a page defect.
+      if (/\/api\/health$/.test(url)) return;
+      consoleErrors.push(url ? `${text} @ ${url}` : text);
+    }
     if (msg.method === 'Runtime.exceptionThrown') consoleErrors.push(msg.params.exceptionDetails.exception?.description || 'exception');
   });
 
@@ -151,6 +157,7 @@ async function main() {
   // 2. In-browser backend actually answers
   console.log('\nIn-browser backend');
   const probe = await evaluate(`(async () => {
+    // Deliberate probe: a static host must answer this with 404.
     const st = await fetch(new URL('api/health', document.baseURI).href).then(r => r.status).catch(() => 'ERR');
     const mod = await import(new URL('js/local-backend.js', document.baseURI).href);
     const b = await mod.createLocalBackend();
@@ -179,28 +186,44 @@ async function main() {
   check('tasks + patient notification created', probe.tasks >= 2 && probe.notified, `${probe.tasks} tasks`);
   check('state persisted to localStorage', probe.stored === true);
 
-  // 3. Real dashboards, in local mode
-  console.log('\nDashboards (local mode)');
-  await evaluate(`localStorage.setItem('careflow.session.v1', JSON.stringify(${JSON.stringify(
-    { id: 'u_reception', name: 'Ananya Sharma', role: 'reception', title: 'Front Desk Executive', department: 'OPD Front Desk', initials: 'AS' },
-  )}))`);
-  await goto(`${BASE}#/reception`);
-  await sleep(3000);
-  const reception = await evaluate('document.getElementById("app").innerHTML');
-  check('reception dashboard renders', /Front Desk/.test(reception) && /Live queue/.test(reception));
-  check('shows static-mode indicator', /runs in browser/.test(reception));
-  check('sees the patient checked in from this browser', /Live Verify Patient/.test(reception));
-  check('queue rows rendered', (reception.match(/queue-row/g) || []).length > 0, `${(reception.match(/queue-row/g) || []).length} rows`);
+  // 3. Every dashboard, signed in as that role - the sidebar nav is role-scoped,
+  //    so each role needs its own session and a fresh document load.
+  console.log('\nDashboards (local mode, signed in per role)');
+  const sessions = await evaluate(`(async () => {
+    const mod = await import(new URL('js/local-backend.js', document.baseURI).href);
+    const b = await mod.createLocalBackend();
+    const out = {};
+    for (const role of ['reception', 'doctor', 'nurse', 'admin']) {
+      out[role] = (await b.request('POST', '/api/auth/login', { role })).user;
+    }
+    return out;
+  })()`);
+  check('all four demo logins work', Object.values(sessions).every((u) => u && u.role));
 
-  await evaluate(`location.hash = '#/nurse'`);
-  await sleep(2500);
-  const nurse = await evaluate('document.getElementById("app").innerHTML');
-  check('nurse dashboard renders', /Nursing Station/.test(nurse), `${(nurse.match(/class="task /g) || []).length} tasks on the board`);
+  const ROLE_CHECKS = [
+    { role: 'reception', title: 'Front Desk', tabs: ['Live queue', 'Appointments', 'Patients'], sees: 'Live Verify Patient' },
+    { role: 'doctor', title: 'Consultation', tabs: ['My patients', 'Consultation notes', 'Lab reports'] },
+    { role: 'nurse', title: 'Nursing Station', tabs: ['Task board', 'Vitals monitor', 'Care plans'] },
+    { role: 'admin', title: 'Operations Command', tabs: ['Overview', 'Staff', 'Analytics', 'Agent log'], sees: 'Coordinator AI' },
+  ];
 
-  await evaluate(`location.hash = '#/admin'`);
-  await sleep(2500);
-  const admin = await evaluate('document.getElementById("app").innerHTML');
-  check('admin dashboard renders', /Operations Command/.test(admin) && /Coordinator AI/.test(admin));
+  for (const rc of ROLE_CHECKS) {
+    await evaluate(`localStorage.setItem('careflow.session.v1', ${JSON.stringify(JSON.stringify(sessions[rc.role]))})`);
+    await goto(`${BASE}#/${rc.role}`);
+    await sleep(3000);
+    const html = await evaluate('document.getElementById("app").innerHTML');
+    const title = await evaluate('document.querySelector(".topbar h1")?.textContent || ""');
+    const contentLen = await evaluate('document.getElementById("content")?.innerHTML.length || 0');
+    const missing = rc.tabs.filter((t) => !html.includes(t));
+    check(`${rc.role} dashboard renders`, title === rc.title && missing.length === 0 && contentLen > 400,
+      title === rc.title ? `${contentLen} chars of content${missing.length ? `, missing tabs: ${missing.join('/')}` : ''}` : `title was "${title}"`);
+    check(`${rc.role}: static-mode indicator`, /runs in browser/.test(html));
+    if (rc.role === 'reception') {
+      check('reception sees the patient checked in from this browser', html.includes(rc.sees));
+      check('queue rows rendered', (html.match(/queue-row/g) || []).length > 0, `${(html.match(/queue-row/g) || []).length} rows`);
+    }
+    if (rc.sees && rc.role !== 'reception') check(`${rc.role}: key panel rendered`, html.includes(rc.sees));
+  }
 
   check('no console errors overall', consoleErrors.length === 0, consoleErrors.slice(0, 3).join(' | '));
 
