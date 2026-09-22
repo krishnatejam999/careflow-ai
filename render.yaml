@@ -1,0 +1,26 @@
+# Render Blueprint — one-click deploy of CareFlow AI.
+#   1. push this folder to a Git repo
+#   2. Render dashboard → New → Blueprint → pick the repo → Apply
+#
+# Free plan note: free web services spin down after 15 minutes of inactivity and
+# the filesystem is ephemeral, so the data layer reseeds on each cold start.
+# Attach a disk (Starter plan and up) to keep state across restarts.
+services:
+  - type: web
+    name: careflow-ai
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: singapore
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATA_DIR
+        value: /data
+    # Persistent state (requires a paid instance type):
+    # disk:
+    #   name: careflow-data
+    #   mountPath: /data
+    #   sizeGB: 1

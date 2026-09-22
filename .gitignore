@@ -1,0 +1,8 @@
+# Local state (recreated from the seed on boot)
+data/
+node_modules/
+npm-debug.log*
+.DS_Store
+.env
+.env.local
+*.log

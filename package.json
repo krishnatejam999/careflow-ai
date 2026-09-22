@@ -1,0 +1,17 @@
+{
+  "name": "careflow-ai",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CareFlow AI - AI Workforce for Hospital Operations. End-to-end prototype.",
+  "type": "module",
+  "main": "server.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "reset": "node scripts/reset.js",
+    "test": "node scripts/smoke-test.js"
+  }
+}

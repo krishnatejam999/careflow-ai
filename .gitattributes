@@ -1,0 +1,9 @@
+# Keep LF everywhere — a CRLF Dockerfile breaks `\` line continuations,
+# and CRLF in shell scripts breaks shebangs. Hosts clone on Linux.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.webp binary
