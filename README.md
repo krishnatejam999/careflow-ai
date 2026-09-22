@@ -65,6 +65,14 @@ check-in, queue advances, critical-vitals escalation, SOAP drafting, allergy-saf
 prescribing, records search, lab release, appointments, Coordinator AI actions,
 error handling and persistence — and prints a pass/fail per workflow.
 
+To check a *deployed* site in a real browser instead (headless Chrome over the DevTools
+Protocol — it exercises the static-hosting fallback, the in-browser backend, localStorage
+and every dashboard):
+
+```bash
+npm run verify:live -- https://krishnatejam999.github.io/careflow-ai/
+```
+
 ### 3-minute demo script
 
 1. Open the landing page and skim the problem → AI workforce → dashboards sections.
@@ -133,7 +141,7 @@ careflow-ai/
 │   ├── index.html     App shell
 │   ├── css/styles.css Design system (tokens, components, layout)
 │   └── js/            ES-module SPA: router, api client, views, charts
-├── scripts/           reset.js, smoke-test.js
+├── scripts/           reset.js, smoke-test.js, verify-live.js
 ├── Dockerfile         Production image (Render / Fly / Cloud Run / any host)
 ├── render.yaml        Render Blueprint — one-click deploy
 ├── fly.toml           Fly.io config with a persistent volume

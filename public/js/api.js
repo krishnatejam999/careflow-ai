@@ -75,7 +75,17 @@ export const api = {
 };
 
 /** Does a CareFlow server answer on this origin? */
+/**
+ * Hosts that serve static files only, so they can never answer /api/health.
+ * Skipping the probe avoids a pointless round trip and a 404 in the browser
+ * console on GitHub/GitLab Pages and when opened straight off disk.
+ */
+function isStaticHost() {
+  return location.protocol === 'file:' || /\.(github|gitlab)\.io$/.test(location.hostname);
+}
+
 export async function detectServer(timeoutMs = 4000) {
+  if (isStaticHost()) return null;
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
