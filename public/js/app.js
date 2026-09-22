@@ -1,6 +1,6 @@
 /** CareFlow AI — SPA shell: router, layout, delegated events. */
 import { store, startPolling } from './store.js';
-import { api } from './api.js';
+import { api, detectServer, useLocalBackend } from './api.js';
 import {
   icon, esc, avatar, toast, openModal, closeOverlay, timeAgo, initials, empty,
 } from './ui.js';
@@ -196,7 +196,9 @@ function topbar(route, cfg) {
       <div id="search-results" class="search-results hidden"></div>
     </div>
     <div class="row gap-sm" style="margin-left:auto">
-      <span class="chip chip-teal nowrap" title="Live data layer connected">${icon('wifi', 13)} <span class="mono">${store.lastSync ? timeAgo(store.lastSync.toISOString ? store.lastSync.toISOString() : store.lastSync) : 'syncing'}</span></span>
+      ${store.localMode
+        ? `<span class="chip chip-amber nowrap" title="No server needed — the data layer and all five AI agents run in this browser and save to localStorage">${icon('cpu', 13)} <span class="mono">runs in browser</span></span>`
+        : `<span class="chip chip-teal nowrap" title="Live data layer connected">${icon('wifi', 13)} <span class="mono">${store.lastSync ? timeAgo(store.lastSync.toISOString ? store.lastSync.toISOString() : store.lastSync) : 'syncing'}</span></span>`}
       <button class="icon-btn" data-act="refresh" title="Refresh from the data layer">${icon('refresh', 15)}</button>
       <button class="icon-btn" data-act="alerts" title="Alerts and notifications">
         ${icon('bell', 15)}
@@ -228,7 +230,7 @@ function render() {
   resetHandlers();
 
   if (route.name === 'landing') {
-    app.innerHTML = landingPage(store.data || store.boot || {});
+    app.innerHTML = landingPage(store.data || store.boot || {}, { localMode: store.localMode });
     mountLanding(app);
     handlers = { open: () => go('#/login') };
     return;
@@ -395,6 +397,23 @@ function wireSearch() {
 /* ------------------------------------------------------------------- boot */
 
 async function boot() {
+  // If no CareFlow server answers on this origin (static hosting, GitHub Pages),
+  // run the entire backend — data layer, route table and all five AI agents —
+  // inside the browser. Same code, same behaviour, no server required.
+  const server = await detectServer();
+  if (server) {
+    store.set({ localMode: false, serverInfo: server });
+  } else {
+    try {
+      const { createLocalBackend } = await import('./local-backend.js');
+      const backend = await createLocalBackend();
+      useLocalBackend(backend);
+      store.set({ localMode: true, localInfo: backend.info });
+    } catch (err) {
+      toast({ title: 'Could not start the in-browser backend', desc: err.message, type: 'error', ms: 9000 });
+    }
+  }
+
   try { await store.bootstrap(); } catch (err) {
     toast({ title: 'Cannot reach the CareFlow server', desc: 'Start it with `npm start` and reload.', type: 'error', ms: 9000 });
   }
@@ -409,10 +428,20 @@ async function boot() {
     render();
   }
   if (store.user) setupLive();
+  if (store.localMode) {
+    toast({
+      title: 'Running as a static site',
+      desc: 'No server needed — the data layer and all five AI agents run in this browser and save to localStorage.',
+      type: 'info',
+      ms: 7000,
+    });
+  }
 }
 
 function setupLive() {
-  const stop = startPolling(15000);
+  // In-browser mode has no other writer to poll for, and polling would only
+  // interrupt typing — so only the server-backed app runs the sync loop.
+  const stop = store.localMode ? () => {} : startPolling(15000);
   window.addEventListener('beforeunload', () => { stop(); cleanups.forEach((f) => f()); });
 }
 

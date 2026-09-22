@@ -1,5 +1,7 @@
 # CareFlow AI — AI Workforce for Hospital Operations
 
+**Live demo → https://krishnatejam999.github.io/careflow-ai/**
+
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/krishnatejam999/careflow-ai)
 
 > **One Intelligent System. Every Hospital Workflow.**
@@ -13,11 +15,33 @@ polished role-based frontend → real data layer → AI agent features.
 
 ---
 
+## Two ways to run — one codebase
+
+On boot the app probes `/api/health`. If a server answers, it uses it. If not, it runs the
+**entire backend in the browser** — the data layer (`lib/db.js`), the route table
+(`lib/api.js`) and all five AI agents (`lib/ai.js`) are isomorphic, so the same modules the
+Node server imports are imported by the page itself.
+
+| | Server mode | Static mode (GitHub Pages) |
+| --- | --- | --- |
+| API runs in | the Node process | the browser |
+| State stored in | `data/db.json` | `localStorage` |
+| Shared between users | yes | no — each browser has its own hospital |
+| AI agent output | identical | identical |
+| Needs a server | yes | **no** |
+
 ## Run it
 
 Zero dependencies. Node 18+ only.
 
-[DEPLOY.md](DEPLOY.md) covers Docker, Render, Fly.io and any other container host.
+```bash
+cd sujat/careflow-ai && npm start
+```
+
+Or just open the [live static demo](https://krishnatejam999.github.io/careflow-ai/) — no install,
+no server, every flow works.
+
+[DEPLOY.md](DEPLOY.md) covers GitHub Pages, Docker, Render, Fly.io and any other container host.
 
 ```bash
 cd sujat/careflow-ai

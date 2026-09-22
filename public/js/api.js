@@ -1,9 +1,28 @@
-/** Thin API client. Every call returns the parsed JSON payload. */
+/** Thin API client. Every call returns the parsed JSON payload.
+ *
+ * Two interchangeable transports:
+ *   • HTTP  — talks to the Node server at /api/*
+ *   • local — calls the same lib/api.js route table in-process (static hosting)
+ * app.js picks one at boot depending on whether a server answered.
+ */
 
-const BASE = '';
+// Resolve API paths against the *page*, not the domain root, so the app also
+// works when hosted under a subpath (e.g. github.io/<repo>/).
+const url = (path) => new URL(path.replace(/^\//, ''), document.baseURI).href;
+
+let localBackend = null;
+
+/** Switch this client to the in-browser backend. */
+export function useLocalBackend(backend) {
+  localBackend = backend;
+}
+
+export const isLocalBackend = () => Boolean(localBackend);
 
 async function request(method, path, body) {
-  const res = await fetch(BASE + path, {
+  if (localBackend) return localBackend.request(method, path, body);
+
+  const res = await fetch(url(path), {
     method,
     headers: { 'Content-Type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -52,4 +71,21 @@ export const api = {
   updateStaff: (id, payload) => request('PATCH', `/api/staff/${id}`, payload),
   analytics: () => request('GET', '/api/analytics'),
   reset: () => request('POST', '/api/reset'),
+  health: () => request('GET', '/api/health'),
 };
+
+/** Does a CareFlow server answer on this origin? */
+export async function detectServer(timeoutMs = 4000) {
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    const res = await fetch(url('/api/health'), { signal: ctrl.signal, headers: { Accept: 'application/json' } });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    if (!(res.headers.get('content-type') || '').includes('application/json')) return null;
+    const body = await res.json();
+    return body?.ok && body.status === 'healthy' ? body : null;
+  } catch {
+    return null;
+  }
+}

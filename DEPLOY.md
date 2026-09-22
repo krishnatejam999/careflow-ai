@@ -15,7 +15,26 @@ Already included in this folder: `Dockerfile`, `.dockerignore`, `render.yaml`, `
 
 ---
 
-## Option 1 — Render (recommended: free + permanent HTTPS URL)
+## Option 0 — GitHub Pages (no server, no account beyond GitHub)
+
+Already configured. `.github/workflows/deploy-pages.yml` runs the end-to-end smoke test,
+assembles `dist/`, and publishes it. Result: **https://krishnatejam999.github.io/careflow-ai/**
+
+How it works: `lib/db.js`, `lib/api.js` and `lib/ai.js` are isomorphic, so when no server
+answers `public/js/local-backend.js` imports them directly and the whole backend — data layer,
+five AI agents, every route — runs in the browser with `localStorage` persistence.
+
+```bash
+# enable Pages once, from the CLI
+gh api -X POST repos/<owner>/careflow-ai/pages -f build_type=workflow
+```
+
+Trade-off: state lives in each visitor's browser, so two people do not share one hospital.
+Use Option 1 or 2 when you need a shared, server-backed dataset.
+
+---
+
+## Option 1 — Render (shared server + free permanent HTTPS URL)
 
 `render.yaml` is a Render **Blueprint**, so the whole service is defined in code.
 
@@ -79,6 +98,8 @@ happens on a phone.
 
 ## Verifying a deployment
 
+Server-backed hosts expose the API, so you can run the full suite against production:
+
 ```bash
 curl https://<your-url>/api/health
 # {"ok":true,"status":"healthy","agents":5,"patients":8,...}
@@ -88,3 +109,7 @@ BASE=https://<your-url> node scripts/smoke-test.js
 
 The smoke test works against any host, so you can run the same 46 end-to-end checks
 against production before you present.
+
+A **static** deployment has no `/api/health` (that is how the app detects static mode), so
+verify it in a browser instead: open the URL, sign in as Reception, run the AI check-in, and
+confirm the patient appears in the queue and on the Nurse task board.

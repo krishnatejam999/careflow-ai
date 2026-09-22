@@ -12,10 +12,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { handle } from './lib/api.js';
-import { db } from './lib/db.js';
+import { loadFromDisk, storageInfo } from './lib/disk.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, 'public');
+
+// The browser's offline backend imports the same lib/ modules the server uses,
+// so those files have to be reachable over HTTP too.
+const LIB_DIR = path.join(__dirname, 'lib');
+const SHARED_LIB = ['db.js', 'ai.js', 'api.js'];
+const SHARED_MIME = { '.js': 'text/javascript; charset=utf-8' };
 const PORT = Number(process.env.PORT) || 4000;
 const HOST = process.env.HOST || '0.0.0.0';
 
@@ -70,6 +76,19 @@ function readBody(req) {
 function serveStatic(req, res, pathname) {
   let rel = decodeURIComponent(pathname);
   if (rel === '/' || rel === '') rel = '/index.html';
+
+  // Shared isomorphic modules (whitelisted by name — nothing else from lib/).
+  const libMatch = rel.match(/^\/lib\/([\w.-]+)$/);
+  if (libMatch) {
+    if (!SHARED_LIB.includes(libMatch[1])) { res.writeHead(404, { 'Content-Type': 'text/plain' }).end('Not found'); return; }
+    const libFile = path.join(LIB_DIR, libMatch[1]);
+    fs.readFile(libFile, (err, buf) => {
+      if (err) { res.writeHead(404, { 'Content-Type': 'text/plain' }).end('Not found'); return; }
+      res.writeHead(200, { 'Content-Type': SHARED_MIME['.js'], 'Cache-Control': 'no-cache' });
+      res.end(buf);
+    });
+    return;
+  }
 
   const filePath = path.join(PUBLIC_DIR, path.normalize(rel).replace(/^([/\\])+/, ''));
   if (!filePath.startsWith(PUBLIC_DIR)) {
@@ -133,14 +152,14 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
-  db(); // seed on boot so the first request is instant
+  loadFromDisk(); // seed/load on boot so the first request is instant
   const line = '─'.repeat(58);
   console.log(`\n  ${line}`);
   console.log('   CareFlow AI  ·  AI Workforce for Hospital Operations');
   console.log('   "One Intelligent System. Every Hospital Workflow."');
   console.log(`  ${line}`);
   console.log(`   ▲  Listening on  ${HOST}:${PORT}`);
-  console.log(`   ●  Data layer   ${process.env.DATA_DIR || 'data/db.json'}`);
+  console.log(`   ●  Data layer   ${storageInfo().file}`);
   console.log('   ✦  5 AI agents online: Reception · Records · Workflow · Comm. · Coordinator');
   console.log(`  ${line}\n`);
 });

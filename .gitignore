@@ -1,6 +1,9 @@
 # Local state (recreated from the seed on boot)
 data/
 node_modules/
+dist/
+tmp-pages/
+server.log
 npm-debug.log*
 .DS_Store
 .env

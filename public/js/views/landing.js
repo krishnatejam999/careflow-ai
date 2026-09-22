@@ -27,7 +27,7 @@ const PROBLEMS = [
   },
 ];
 
-export function landingPage(state = {}) {
+export function landingPage(state = {}, opts = {}) {
   const agents = state.agents?.length ? state.agents : Object.keys(AGENT_META).map((n, i) => ({ id: n, name: n, tag: '', accent: ['#0ea5e9', '#8b5cf6', '#14b8a6', '#f59e0b', '#ef4444'][i] }));
 
   return `
@@ -45,6 +45,7 @@ export function landingPage(state = {}) {
           <a href="#roadmap">Roadmap</a>
         </div>
         <div class="row gap">
+          ${opts.localMode ? `<span class="chip chip-amber nowrap" title="This deployment is a static site — every AI agent runs in your browser">${icon('cpu', 12)} runs in your browser</span>` : ''}
           <a class="btn btn-ghost" href="#/login">Sign in</a>
           <a class="btn btn-primary" href="#/login">${icon('play', 13)} Start demo</a>
         </div>

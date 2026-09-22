@@ -1,0 +1,71 @@
+name: Deploy CareFlow AI to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify before deploying
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # A broken push should never reach the public URL, so the full
+      # end-to-end suite gates the deploy.
+      - name: Boot the server and run the end-to-end smoke test
+        run: |
+          node server.js > server.log 2>&1 &
+          for i in $(seq 1 20); do
+            curl -sf http://localhost:4000/api/health > /dev/null && break
+            sleep 0.5
+          done
+          node scripts/smoke-test.js
+          cat server.log
+
+  build:
+    name: Assemble the static build
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The app runs without a server: the frontend plus the three isomorphic
+      # modules (data layer, AI agents, route table) that the browser imports.
+      - name: Assemble dist/
+        run: |
+          mkdir -p dist/lib
+          cp -r public/. dist/
+          cp lib/db.js lib/ai.js lib/api.js dist/lib/
+          touch dist/.nojekyll
+          echo "dist contents:"
+          find dist -type f | sort
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
