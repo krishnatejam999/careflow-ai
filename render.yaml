@@ -13,7 +13,8 @@ services:
     plan: free
     region: singapore
     healthCheckPath: /api/health
-    autoDeploy: true
+    autoDeployTrigger: commit
+    maxShutdownDelaySeconds: 15
     envVars:
       - key: NODE_ENV
         value: production
